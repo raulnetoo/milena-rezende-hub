@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Upload, Check } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, Plus, Upload, Check, Briefcase, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -27,6 +28,7 @@ function ClienteDetailPage() {
   const [cobrancas, setCobrancas] = useState<Tables<"cobrancas">[]>([]);
   const [agendaItems, setAgendaItems] = useState<Tables<"agenda">[]>([]);
   const [arquivos, setArquivos] = useState<Tables<"arquivos">[]>([]);
+  const [servicos, setServicos] = useState<Tables<"servicos">[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Dialog states
@@ -34,30 +36,34 @@ function ClienteDetailPage() {
   const [cobrancaDialog, setCobrancaDialog] = useState(false);
   const [agendaDialog, setAgendaDialog] = useState(false);
   const [editDialog, setEditDialog] = useState(false);
+  const [servicoDialog, setServicoDialog] = useState(false);
 
   // Forms
   const [contratoForm, setContratoForm] = useState({ tipo: "mensal", valor: "", duracao_meses: "12", desconto: "" });
   const [cobrancaForm, setCobrancaForm] = useState({ valor: "", data_vencimento: "" });
   const [agendaForm, setAgendaForm] = useState({ data: "", descricao: "" });
   const [editForm, setEditForm] = useState({ nome: "", email: "", telefone: "", cor_principal: "", ativo: true });
+  const [servicoForm, setServicoForm] = useState({ descricao: "", data: format(new Date(), "yyyy-MM-dd"), valor: "", status: "pendente", observacoes: "" });
 
   useEffect(() => {
     if (user) loadAll();
   }, [user, clienteId]);
 
   async function loadAll() {
-    const [cRes, ctRes, cbRes, agRes, arRes] = await Promise.all([
+    const [cRes, ctRes, cbRes, agRes, arRes, svRes] = await Promise.all([
       supabase.from("clientes").select("*").eq("id", clienteId).single(),
       supabase.from("contratos").select("*").eq("cliente_id", clienteId).eq("ativo", true).maybeSingle(),
       supabase.from("cobrancas").select("*").eq("cliente_id", clienteId).order("data_vencimento", { ascending: false }),
       supabase.from("agenda").select("*").eq("cliente_id", clienteId).order("data", { ascending: true }),
       supabase.from("arquivos").select("*").eq("cliente_id", clienteId).order("created_at", { ascending: false }),
+      supabase.from("servicos").select("*").eq("cliente_id", clienteId).order("data", { ascending: false }),
     ]);
     setCliente(cRes.data);
     setContrato(ctRes.data);
     setCobrancas(cbRes.data || []);
     setAgendaItems(agRes.data || []);
     setArquivos(arRes.data || []);
+    setServicos(svRes.data || []);
     if (cRes.data) {
       setEditForm({
         nome: cRes.data.nome,
