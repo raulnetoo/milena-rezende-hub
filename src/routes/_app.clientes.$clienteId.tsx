@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Upload, Check } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, Plus, Upload, Check, Briefcase, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -27,6 +28,7 @@ function ClienteDetailPage() {
   const [cobrancas, setCobrancas] = useState<Tables<"cobrancas">[]>([]);
   const [agendaItems, setAgendaItems] = useState<Tables<"agenda">[]>([]);
   const [arquivos, setArquivos] = useState<Tables<"arquivos">[]>([]);
+  const [servicos, setServicos] = useState<Tables<"servicos">[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Dialog states
@@ -34,30 +36,34 @@ function ClienteDetailPage() {
   const [cobrancaDialog, setCobrancaDialog] = useState(false);
   const [agendaDialog, setAgendaDialog] = useState(false);
   const [editDialog, setEditDialog] = useState(false);
+  const [servicoDialog, setServicoDialog] = useState(false);
 
   // Forms
   const [contratoForm, setContratoForm] = useState({ tipo: "mensal", valor: "", duracao_meses: "12", desconto: "" });
   const [cobrancaForm, setCobrancaForm] = useState({ valor: "", data_vencimento: "" });
   const [agendaForm, setAgendaForm] = useState({ data: "", descricao: "" });
   const [editForm, setEditForm] = useState({ nome: "", email: "", telefone: "", cor_principal: "", ativo: true });
+  const [servicoForm, setServicoForm] = useState({ descricao: "", data: format(new Date(), "yyyy-MM-dd"), valor: "", status: "pendente", observacoes: "" });
 
   useEffect(() => {
     if (user) loadAll();
   }, [user, clienteId]);
 
   async function loadAll() {
-    const [cRes, ctRes, cbRes, agRes, arRes] = await Promise.all([
+    const [cRes, ctRes, cbRes, agRes, arRes, svRes] = await Promise.all([
       supabase.from("clientes").select("*").eq("id", clienteId).single(),
       supabase.from("contratos").select("*").eq("cliente_id", clienteId).eq("ativo", true).maybeSingle(),
       supabase.from("cobrancas").select("*").eq("cliente_id", clienteId).order("data_vencimento", { ascending: false }),
       supabase.from("agenda").select("*").eq("cliente_id", clienteId).order("data", { ascending: true }),
       supabase.from("arquivos").select("*").eq("cliente_id", clienteId).order("created_at", { ascending: false }),
+      supabase.from("servicos").select("*").eq("cliente_id", clienteId).order("data", { ascending: false }),
     ]);
     setCliente(cRes.data);
     setContrato(ctRes.data);
     setCobrancas(cbRes.data || []);
     setAgendaItems(agRes.data || []);
     setArquivos(arRes.data || []);
+    setServicos(svRes.data || []);
     if (cRes.data) {
       setEditForm({
         nome: cRes.data.nome,
@@ -148,6 +154,33 @@ function ClienteDetailPage() {
       tipo,
       nome: file.name,
     });
+    loadAll();
+  }
+
+  async function handleCreateServico(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) return;
+    await supabase.from("servicos").insert({
+      cliente_id: clienteId,
+      user_id: user.id,
+      descricao: servicoForm.descricao,
+      data: servicoForm.data,
+      valor: servicoForm.valor ? parseFloat(servicoForm.valor) : null,
+      status: servicoForm.status,
+      observacoes: servicoForm.observacoes || null,
+    });
+    setServicoDialog(false);
+    setServicoForm({ descricao: "", data: format(new Date(), "yyyy-MM-dd"), valor: "", status: "pendente", observacoes: "" });
+    loadAll();
+  }
+
+  async function handleUpdateServicoStatus(id: string, status: string) {
+    await supabase.from("servicos").update({ status }).eq("id", id);
+    loadAll();
+  }
+
+  async function handleDeleteServico(id: string) {
+    await supabase.from("servicos").delete().eq("id", id);
     loadAll();
   }
 
@@ -272,10 +305,99 @@ function ClienteDetailPage() {
       {/* Tabs */}
       <Tabs defaultValue="financeiro" className="mt-6">
         <TabsList>
+          <TabsTrigger value="servicos">Serviços</TabsTrigger>
           <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
           <TabsTrigger value="agenda">Agenda</TabsTrigger>
           <TabsTrigger value="arquivos">Arquivos</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="servicos" className="mt-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">Serviços Prestados</h3>
+            <Dialog open={servicoDialog} onOpenChange={setServicoDialog}>
+              <DialogTrigger asChild>
+                <Button size="sm"><Plus className="mr-1 h-3 w-3" />Novo Serviço</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Novo Serviço</DialogTitle></DialogHeader>
+                <form onSubmit={handleCreateServico} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Descrição *</Label>
+                    <Input value={servicoForm.descricao} onChange={(e) => setServicoForm({ ...servicoForm, descricao: e.target.value })} placeholder="Ex: Post Instagram, Identidade visual..." required />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Data</Label>
+                      <Input type="date" value={servicoForm.data} onChange={(e) => setServicoForm({ ...servicoForm, data: e.target.value })} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Valor (R$)</Label>
+                      <Input type="number" step="0.01" value={servicoForm.valor} onChange={(e) => setServicoForm({ ...servicoForm, valor: e.target.value })} placeholder="Opcional" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select value={servicoForm.status} onValueChange={(v) => setServicoForm({ ...servicoForm, status: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pendente">Pendente</SelectItem>
+                        <SelectItem value="em_andamento">Em andamento</SelectItem>
+                        <SelectItem value="concluido">Concluído</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Observações</Label>
+                    <Textarea value={servicoForm.observacoes} onChange={(e) => setServicoForm({ ...servicoForm, observacoes: e.target.value })} rows={3} />
+                  </div>
+                  <Button type="submit" className="w-full">Criar</Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+          {servicos.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum serviço registrado.</p>
+          ) : (
+            <div className="space-y-2">
+              {servicos.map((s) => (
+                <div key={s.id} className="flex items-start gap-3 rounded-lg border bg-card p-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Briefcase className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium">{s.descricao}</p>
+                      {s.valor != null && (
+                        <span className="text-sm font-semibold whitespace-nowrap">R$ {Number(s.valor).toFixed(2)}</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {format(new Date(s.data + "T12:00:00"), "dd/MM/yyyy")}
+                    </p>
+                    {s.observacoes && (
+                      <p className="mt-2 text-xs text-muted-foreground">{s.observacoes}</p>
+                    )}
+                    <div className="mt-2 flex items-center gap-2">
+                      <Select value={s.status} onValueChange={(v) => handleUpdateServicoStatus(s.id, v)}>
+                        <SelectTrigger className="h-7 w-[160px] text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pendente">Pendente</SelectItem>
+                          <SelectItem value="em_andamento">Em andamento</SelectItem>
+                          <SelectItem value="concluido">Concluído</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button size="sm" variant="ghost" onClick={() => handleDeleteServico(s.id)} className="h-7 px-2 text-muted-foreground hover:text-destructive">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
 
         <TabsContent value="financeiro" className="mt-4">
           <div className="flex items-center justify-between mb-4">
