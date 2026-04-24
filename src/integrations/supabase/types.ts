@@ -220,6 +220,53 @@ export type Database = {
           },
         ]
       }
+      servicos: {
+        Row: {
+          cliente_id: string
+          created_at: string
+          data: string
+          descricao: string
+          id: string
+          observacoes: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          valor: number | null
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string
+          data?: string
+          descricao: string
+          id?: string
+          observacoes?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          valor?: number | null
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string
+          data?: string
+          descricao?: string
+          id?: string
+          observacoes?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "servicos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
